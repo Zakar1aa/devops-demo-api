@@ -1,7 +1,8 @@
 {
   "name": "devops-demo-api",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "1.0.1",
+  "description": "Simple API for DevOps demo",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -9,22 +10,20 @@
     "lint": "eslint . --ext .js",
     "prep": "npm run lint && npm test"
   },
-  "jest": {
-    "testEnvironment": "node"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "author": "Team DevOps",
+  "license": "MIT",
   "dependencies": {
-    "body-parser": "^2.2.0",
-    "express": "^5.1.0",
-    "uuid": "^8.3.2"
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "eslint": "^9.39.1",
-    "jest": "^30.2.0",
-    "nodemon": "^3.1.10",
-    "supertest": "^7.1.4"
+    "jest": "^29.0.0",
+    "supertest": "^6.3.3",
+    "nodemon": "^2.0.22",
+    "eslint": "^8.40.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
