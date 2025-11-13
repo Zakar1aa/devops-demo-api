@@ -109,7 +109,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Container Scan – Trivy (REAL SCAN)
+      # Container Scan – Trivy REAL SCAN
       - name: Container Scan - Trivy
         uses: aquasecurity/trivy-action@master
         with:
