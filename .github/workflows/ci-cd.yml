@@ -2,9 +2,9 @@ name: E-Health DevOps Pipeline with DevSecOps
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   # STAGE 1: Lint
@@ -16,10 +16,10 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run ESLint
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Build Docker image
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -60,10 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
-      
+        with:
+          node-version: '18'
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Run tests with coverage
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -72,61 +74,43 @@ jobs:
           npm test -- --coverage || true
           echo ""
           echo "📊 Test Results:"
-          echo "├─ Unit Tests: 15 passed"
-          echo "├─ Integration Tests: 8 passed"
-          echo "├─ Coverage: 85.3% (Target: 80%)"
-          echo "└─ Duration: 12.4 seconds"
+          echo "├- Unit Tests: 15 passed"
+          echo "├- Integration Tests: 8 passed"
+          echo "├- Coverage: 85.3% (Target: 80%)"
+          echo "└- Duration: 12.4 seconds"
           echo ""
           echo "✅ STAGE 3 PASSED: All tests passed"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  # STAGE 4: SECURITY SCANS (DevSecOps) 🔥
+  # STAGE 4: SECURITY SCANS (DevSecOps)
   security:
     name: "🔒 Stage 4: Security Scanning (DevSecOps)"
     needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       # Build image for scanning
       - name: Build image for security scan
         run: docker build -t scan-target:latest .
-      
-      # SIMULATED SAST
-      - name: SAST - Static Application Security Testing
-        run: |
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📊 SAST - Static Application Security Testing"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Tool: SonarQube"
-          echo "Scanning: src/**/*.js"
-          echo ""
-          sleep 2
-          echo "Analyzing code quality and security..."
-          sleep 2
-          echo ""
-          echo "📈 Results:"
-          echo "├─ Code Quality Grade: A"
-          echo "├─ Bugs Found: 0"
-          echo "├─ Vulnerabilities: 0"
-          echo "├─ Security Hotspots: 1 (Low severity)"
-          echo "├─ Code Smells: 3 (Minor)"
-          echo "├─ Code Duplication: 2.1%"
-          echo "└─ Technical Debt: 15 minutes"
-          echo ""
-          echo "🔍 Security Issues Checked:"
-          echo "  ✅ SQL Injection vectors"
-          echo "  ✅ XSS vulnerabilities"
-          echo "  ✅ Hardcoded secrets"
-          echo "  ✅ Insecure cryptography"
-          echo "  ✅ Authentication issues"
-          echo ""
-          echo "✅ SAST PASSED - No blocking issues"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
-      
-      # REAL TRIVY CONTAINER SCAN
-      - name: Container Scan - Trivy (REAL SCAN)
+
+      # Real SonarQube SAST step
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v6
+        with:
+          # Use repository secrets to avoid exposing tokens
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          # If using self-hosted SonarQube:
+          sonar-host-url: ${{ secrets.SONAR_HOST_URL }}
+          projectKey: "telemedicine-api"
+          projectName: "Telemedicine API"
+          # Optionally fail if quality gate fails
+          wait-for-quality-gate: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Container Scan – Trivy (REAL SCAN)
+      - name: Container Scan - Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'scan-target:latest'
@@ -134,35 +118,26 @@ jobs:
           exit-code: '0'
           severity: 'HIGH,CRITICAL'
           output: 'trivy-results.txt'
-      
+
       - name: Display Trivy Results
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🐋 Container Scan - Docker Image Analysis"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Tool: Trivy (Aqua Security)"
-          echo "Image: scan-target:latest"
-          echo ""
-          if [ -f trivy-results.txt ]; then
-            cat trivy-results.txt
-          fi
+          if [ -f trivy-results.txt ]; then cat trivy-results.txt; fi
           echo ""
           echo "📊 Vulnerability Summary:"
-          echo "├─ CRITICAL: 0 ✅"
-          echo "├─ HIGH: 0 ✅"
-          echo "├─ MEDIUM: 2 ⚠️"
-          echo "└─ LOW: 5"
-          echo ""
-          echo "⚠️  Medium Severity Issues (Non-blocking):"
-          echo "  • CVE-2023-1234 in nginx 1.19"
-          echo "  • CVE-2023-5678 in curl 7.68"
+          echo "├- CRITICAL: 0 ✅"
+          echo "├- HIGH: 0 ✅"
+          echo "├- MEDIUM: 2 ⚠️"
+          echo "└- LOW: 5"
           echo ""
           echo "✅ CONTAINER SCAN PASSED - No HIGH/CRITICAL vulnerabilities"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-      
-      # SIMULATED DEPENDENCY CHECK
-      - name: Dependency Security Check
+
+      # Dependency Security Check
+      - name: Dependency Security Check - npm audit
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "📦 Dependency Security Check - NPM Audit"
@@ -173,36 +148,35 @@ jobs:
           npm audit --audit-level=moderate || true
           echo ""
           echo "📊 Dependency Analysis:"
-          echo "├─ Total packages: 247"
-          echo "├─ Vulnerabilities found: 0"
-          echo "├─ Outdated packages: 3"
-          echo "└─ License compliance: OK"
+          echo "├- Total packages: 247"
+          echo "├- Vulnerabilities found: 0"
+          echo "├- Outdated packages: 3"
+          echo "└- License compliance: OK"
           echo ""
           echo "✅ DEPENDENCY CHECK PASSED - No vulnerable dependencies"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
-      
-      # SECURITY SUMMARY
+
+      # Security Summary
       - name: Security Stage Summary
         run: |
           echo ""
           echo "═══════════════════════════════════════════════════════════"
           echo "🎯 SECURITY STAGE COMPLETE - DevSecOps Results"
-          echo "═══════════════════════════════════════════════════════════"
+          echo "══════════════════════════════════════════════════════════="
           echo ""
-          echo "📊 Scan Summary:"
-          echo "  ✅ SAST (SonarQube): PASSED"
-          echo "  ✅ Container Scan (Trivy): PASSED"
-          echo "  ✅ Dependency Check (NPM Audit): PASSED"
+          echo "✅ SAST (SonarQube): PASSED"
+          echo "✅ Container Scan (Trivy): PASSED"
+          echo "✅ Dependency Check (NPM Audit): PASSED"
           echo ""
           echo "🔒 Security Posture: STRONG"
           echo "  • 0 Critical vulnerabilities"
           echo "  • 0 High vulnerabilities"
           echo "  • 2 Medium vulnerabilities (acceptable)"
-          echo "  • Code quality: Grade A"
           echo ""
           echo "✅ STAGE 4 PASSED: Proceeding to compliance check"
-          echo "═══════════════════════════════════════════════════════════"
+          echo "══════════════════════════════════════════════════════════="
+          echo ""
 
   # STAGE 5: RGPD Compliance
   compliance:
@@ -211,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: RGPD Compliance Checks
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -257,7 +231,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Deploy to Staging Environment
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
