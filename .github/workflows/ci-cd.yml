@@ -82,7 +82,7 @@ jobs:
           echo "✅ STAGE 3 PASSED: All tests passed"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  # STAGE 4: SECURITY SCANS (DevSecOps)
+  # STAGE 4: SECURITY SCANS (DevSecOps
   security:
     name: "🔒 Stage 4: Security Scanning (DevSecOps)"
     needs: test
