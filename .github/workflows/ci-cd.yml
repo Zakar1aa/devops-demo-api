@@ -82,7 +82,7 @@ jobs:
           echo "✅ STAGE 3 PASSED: All tests passed"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  # STAGE 4: SECURITY SCANS (DevSecOps
+  # STAGE 4: SECURITY SCANS (DevSecOps)
   security:
     name: "🔒 Stage 4: Security Scanning (DevSecOps)"
     needs: test
@@ -94,88 +94,94 @@ jobs:
       - name: Build image for security scan
         run: docker build -t scan-target:latest .
 
-      # Real SonarQube SAST step
+      # SAST - SonarQube (using sonar-scanner CLI via Docker)
       - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v6
-        with:
-          # Use repository secrets to avoid exposing tokens
-          sonar-token: ${{ secrets.SONAR_TOKEN }}
-          # If using self-hosted SonarQube:
-          sonar-host-url: ${{ secrets.SONAR_HOST_URL }}
-          projectKey: "telemedicine-api"
-          projectName: "Telemedicine API"
-          # Optionally fail if quality gate fails
-          wait-for-quality-gate: true
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔎 Running SonarQube Scanner (docker)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          docker run --rm \
+            -e SONAR_HOST_URL="${{ secrets.SONAR_HOST_URL }}" \
+            -e SONAR_TOKEN="${{ secrets.SONAR_TOKEN }}" \
+            -v "${{ github.workspace }}":/usr/src \
+            -w /usr/src \
+            sonarsource/sonar-scanner-cli \
+            -Dsonar.projectKey=telemedicine-api \
+            -Dsonar.projectName="Telemedicine API" \
+            -Dsonar.qualitygate.wait=true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Container Scan – Trivy REAL SCAN
+      # Container Scan - Trivy (BLOCKING)
       - name: Container Scan - Trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'scan-target:latest'
-          format: 'table'
-          exit-code: '0'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '1'  # ✅ FAIL THE PIPELINE
           severity: 'HIGH,CRITICAL'
-          output: 'trivy-results.txt'
+          ignore-unfixed: true  # Optional: ignore vulnerabilities without fixes
 
-      - name: Display Trivy Results
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      # SAST - Semgrep for Code Analysis
+      - name: Semgrep Security Scan
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🐋 Container Scan - Docker Image Analysis"
+          echo "🔍 SAST - Semgrep Code Analysis"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          if [ -f trivy-results.txt ]; then cat trivy-results.txt; fi
-          echo ""
-          echo "📊 Vulnerability Summary:"
-          echo "├- CRITICAL: 0 ✅"
-          echo "├- HIGH: 0 ✅"
-          echo "├- MEDIUM: 2 ⚠️"
-          echo "└- LOW: 5"
-          echo ""
-          echo "✅ CONTAINER SCAN PASSED - No HIGH/CRITICAL vulnerabilities"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
+          
+          # Install semgrep
+          pip install semgrep
+          
+          # Run semgrep with security rules - WILL BLOCK ON FINDINGS
+          semgrep --config=auto --error --json --output=semgrep-results.json .
+          
+          # Display results
+          if [ -f semgrep-results.json ]; then
+            cat semgrep-results.json | jq '.results[] | {check_id, path, line, message}'
+          fi
 
-      # Dependency Security Check
-      - name: Dependency Security Check - npm audit
+      # Dependency Security Check (BLOCKING)
+      - name: Dependency Security Check
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "📦 Dependency Security Check - NPM Audit"
+          echo "📦 Dependency Security - NPM Audit"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Scanning npm packages for known vulnerabilities..."
-          echo ""
-          sleep 2
-          npm audit --audit-level=moderate || true
-          echo ""
-          echo "📊 Dependency Analysis:"
-          echo "├- Total packages: 247"
-          echo "├- Vulnerabilities found: 0"
-          echo "├- Outdated packages: 3"
-          echo "└- License compliance: OK"
-          echo ""
-          echo "✅ DEPENDENCY CHECK PASSED - No vulnerable dependencies"
+          
+          npm ci
+          
+          # BLOCK on moderate+ vulnerabilities
+          npm audit --audit-level=moderate
+          
+          echo "✅ No vulnerable dependencies found"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo ""
 
-      # Security Summary
-      - name: Security Stage Summary
+      # Secret Scanning - Gitleaks
+      - name: Secret Scanning - Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }} # Optional for Pro
+
+      - name: Security Summary
+        if: success()
         run: |
           echo ""
           echo "═══════════════════════════════════════════════════════════"
-          echo "🎯 SECURITY STAGE COMPLETE - DevSecOps Results"
-          echo "══════════════════════════════════════════════════════════="
+          echo "🎯 ALL SECURITY CHECKS PASSED"
+          echo "═══════════════════════════════════════════════════════════"
           echo ""
           echo "✅ SAST (SonarQube): PASSED"
+          echo "✅ SAST (Semgrep): PASSED"
           echo "✅ Container Scan (Trivy): PASSED"
-          echo "✅ Dependency Check (NPM Audit): PASSED"
-          echo ""
-          echo "🔒 Security Posture: STRONG"
-          echo "  • 0 Critical vulnerabilities"
-          echo "  • 0 High vulnerabilities"
-          echo "  • 2 Medium vulnerabilities (acceptable)"
-          echo ""
-          echo "✅ STAGE 4 PASSED: Proceeding to compliance check"
-          echo "══════════════════════════════════════════════════════════="
+          echo "✅ Dependency Check: PASSED"
+          echo "✅ Secret Scan (Gitleaks): PASSED"
           echo ""
 
   # STAGE 5: RGPD Compliance

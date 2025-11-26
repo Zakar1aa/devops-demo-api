@@ -1,5 +1,5 @@
 // 🚨 VULNERABILITY 1: Hardcoded credentials
-const DATABASE_PASSWORD = "admin123456";  // Hardcoded secret!
+const DATABASE_PASSWORD = "admin12346";  // Hardcoded secret!
 
 // 🚨 VULNERABILITY 2: SQL Injection vulnerability
 function getUserData(userId) {
